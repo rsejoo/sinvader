@@ -75,17 +75,6 @@
             color: white;
             user-select: none;
         }
-        #orientationMessage {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 24px;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
@@ -111,11 +100,6 @@
         <div id="rightButton" class="control-button">&gt;</div>
     </div>
 
-    <!-- Orientation message -->
-    <div id="orientationMessage">
-        Please rotate your device to landscape mode.
-    </div>
-
     <!-- Audio element -->
     <audio id="backgroundMusic" loop>
         <source src="background_music.mp3" type="audio/mpeg">
@@ -131,7 +115,6 @@
         const startScreen = document.getElementById('startScreen');
         const startButton = document.getElementById('startButton');
         const backgroundMusic = document.getElementById('backgroundMusic');
-        const orientationMessage = document.getElementById('orientationMessage');
 
         // Touch controls
         const leftButton = document.getElementById('leftButton');
@@ -232,20 +215,127 @@
             gameLoop();
         });
 
-        // Orientation handling
-        function checkOrientation() {
-            if (window.innerHeight > window.innerWidth) {
-                orientationMessage.style.display = 'block';
-            } else {
-                orientationMessage.style.display = 'none';
+        function update() {
+            if (gameOver) return;
+
+            // Player movement
+            if (keys.ArrowLeft && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if (keys.ArrowRight && player.x < canvas.width - player.width) {
+                player.x += player.speed;
+            }
+
+            // Shooting
+            if (keys.Space && !bullet.active) {
+                bullet.x = player.x + player.width / 2 - 2;
+                bullet.y = player.y;
+                bullet.active = true;
+                keys.Space = false;
+            }
+
+            // Bullet movement
+            if (bullet.active) {
+                bullet.y -= bullet.speed;
+                if (bullet.y < 0) {
+                    bullet.active = false;
+                }
+            }
+
+            // Invader movement
+            let edgeReached = false;
+            let activeInvaders = invaders.filter(invader => invader.active);
+            
+            activeInvaders.forEach(invader => {
+                invader.x += invaderSpeed * invaderDirection;
+                
+                if (invader.x < 0 || invader.x + invader.width > canvas.width) {
+                    edgeReached = true;
+                }
+
+                // Game over if invaders reach bottom
+                if (invader.y + invader.height >= canvas.height) {
+                    gameOver = true;
+                    gameOverElement.style.display = 'block';
+                    backgroundMusic.pause();
+                }
+
+                // Game over if invader touches player
+                if (invader.y + invader.height >= player.y &&
+                    invader.x < player.x + player.width &&
+                    invader.x + invader.width > player.x) {
+                    gameOver = true;
+                    gameOverElement.style.display = 'block';
+                    backgroundMusic.pause();
+                }
+            });
+
+            if (edgeReached && !invaderDrop) {
+                invaderDirection *= -1;
+                invaderDrop = true;
+                activeInvaders.forEach(invader => {
+                    invader.y += 20;
+                });
+            } else if (!edgeReached) {
+                invaderDrop = false;
+            }
+
+            // Collision detection
+            if (bullet.active) {
+                activeInvaders.forEach(invader => {
+                    if (bullet.x > invader.x &&
+                        bullet.x < invader.x + invader.width &&
+                        bullet.y > invader.y &&
+                        bullet.y < invader.y + invader.height) {
+                        
+                        invader.active = false;
+                        bullet.active = false;
+                        score += 100;
+                        scoreElement.textContent = `Score: ${score}`;
+                    }
+                });
+            }
+
+            // Check for level completion
+            if (activeInvaders.length === 0) {
+                level++;
+                levelElement.textContent = `Level: ${level}`;
+                invaderSpeed += 0.5;
+                createInvaders(4 + Math.floor(level / 2));
             }
         }
 
-        window.addEventListener('resize', checkOrientation);
-        window.addEventListener('orientationchange', checkOrientation);
-        checkOrientation();
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Keep the rest of your existing JavaScript code
+            // Draw player
+            ctx.fillStyle = 'lime';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Draw invaders
+            ctx.fillStyle = 'red';
+            invaders.forEach(invader => {
+                if (invader.active) {
+                    ctx.fillRect(invader.x, invader.y, invader.width, invader.height);
+                }
+            });
+
+            // Draw bullet
+            if (bullet.active) {
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(bullet.x, bullet.y, 4, 10);
+            }
+        }
+
+        function gameLoop() {
+            if (!gameOver) {
+                update();
+                draw();
+            }
+            requestAnimationFrame(gameLoop);
+        }
     </script>
 </body>
 </html>
