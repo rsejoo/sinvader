@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Space Invaders</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+            touch-action: none; /* Disable touch gestures like pinch-to-zoom */
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: black;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
+        #level {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-family: Arial, sans-serif;
+            font-size: 48px;
+            text-align: center;
+        }
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 5px;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .control-button {
+            padding: 20px;
+            font-size: 24px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border: 2px solid white;
+            border-radius: 50%;
+            color: white;
+            user-select: none;
+        }
+        #orientationMessage {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Start screen -->
+    <div id="startScreen">
+        <h1>SPACE INVADERS</h1>
+        <button id="startButton">Tap to Start</button>
+    </div>
+
+    <!-- Game elements -->
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="gameOver">
+        GAME OVER!<br>
+        Tap to restart
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Touch controls -->
+    <div id="controls">
+        <div id="leftButton" class="control-button">&lt;</div>
+        <div id="fireButton" class="control-button">Fire</div>
+        <div id="rightButton" class="control-button">&gt;</div>
+    </div>
+
+    <!-- Orientation message -->
+    <div id="orientationMessage">
+        Please rotate your device to landscape mode.
+    </div>
+
+    <!-- Audio element -->
+    <audio id="backgroundMusic" loop>
+        <source src="background_music.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const levelElement = document.getElementById('level');
+        const gameOverElement = document.getElementById('gameOver');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        const orientationMessage = document.getElementById('orientationMessage');
+
+        // Touch controls
+        const leftButton = document.getElementById('leftButton');
+        const rightButton = document.getElementById('rightButton');
+        const fireButton = document.getElementById('fireButton');
+
+        // Game state
+        let score = 0;
+        let level = 1;
+        let gameOver = false;
+        let invaderDirection = 1;
+        let invaderDrop = false;
+
+        let player;
+        let invaders = [];
+        let invaderSpeed = 2;
+        const baseInvaderSpeed = 2;
+        const invaderCols = 8;
+
+        const bullet = {
+            x: 0,
+            y: 0,
+            speed: 10,
+            active: false
+        };
+
+        // Key states
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            Space: false
+        };
+
+        // Initialize game
+        function initGame() {
+            // Set canvas size based on screen dimensions
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            // Initialize player
+            player = {
+                x: canvas.width / 2 - 25,
+                y: canvas.height - 100,
+                width: canvas.width * 0.1,
+                height: canvas.height * 0.03,
+                speed: canvas.width * 0.02
+            };
+
+            // Reset game state
+            score = 0;
+            level = 1;
+            gameOver = false;
+            invaderSpeed = baseInvaderSpeed;
+            createInvaders(4);
+            gameOverElement.style.display = 'none';
+            scoreElement.textContent = `Score: ${score}`;
+            levelElement.textContent = `Level: ${level}`;
+
+            // Start background music
+            backgroundMusic.play().catch(error => {
+                console.log('Audio playback error:', error);
+            });
+        }
+
+        function createInvaders(rows) {
+            invaders = [];
+            const invaderWidth = canvas.width * 0.05;
+            const invaderHeight = canvas.height * 0.03;
+            const spacing = canvas.width * 0.02;
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < invaderCols; col++) {
+                    invaders.push({
+                        x: spacing + col * (invaderWidth + spacing),
+                        y: 50 + row * (invaderHeight + spacing),
+                        width: invaderWidth,
+                        height: invaderHeight,
+                        active: true
+                    });
+                }
+            }
+        }
+
+        // Event listeners for touch controls
+        leftButton.addEventListener('touchstart', () => keys.ArrowLeft = true);
+        leftButton.addEventListener('touchend', () => keys.ArrowLeft = false);
+
+        rightButton.addEventListener('touchstart', () => keys.ArrowRight = true);
+        rightButton.addEventListener('touchend', () => keys.ArrowRight = false);
+
+        fireButton.addEventListener('touchstart', () => keys.Space = true);
+        fireButton.addEventListener('touchend', () => keys.Space = false);
+
+        // Start the game on button click
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            initGame();
+            gameLoop();
+        });
+
+        // Orientation handling
+        function checkOrientation() {
+            if (window.innerHeight > window.innerWidth) {
+                orientationMessage.style.display = 'block';
+            } else {
+                orientationMessage.style.display = 'none';
+            }
+        }
+
+        window.addEventListener('resize', checkOrientation);
+        window.addEventListener('orientationchange', checkOrientation);
+        checkOrientation();
+
+        // Keep the rest of your existing JavaScript code
+    </script>
+</body>
+</html>
