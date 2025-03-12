@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Space Invaders</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: black;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
+        #level {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-family: Arial, sans-serif;
+            font-size: 48px;
+            text-align: center;
+        }
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Start screen -->
+    <div id="startScreen">
+        <h1>SPACE INVADERS</h1>
+        <button id="startButton">Click to Start</button>
+    </div>
+
+    <!-- Game elements -->
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="gameOver">
+        GAME OVER!<br>
+        Press R to restart
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- Audio element -->
+    <audio id="backgroundMusic" loop>
+        <source src="background_music.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const levelElement = document.getElementById('level');
+        const gameOverElement = document.getElementById('gameOver');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+
+        // Game state
+        let score = 0;
+        let level = 1;
+        let gameOver = false;
+        let invaderDirection = 1;
+        let invaderDrop = false;
+
+        const player = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 50,
+            width: 50,
+            height: 20,
+            speed: 7
+        };
+
+        let invaders = [];
+        let invaderSpeed = 2;
+        const baseInvaderSpeed = 2;
+        const invaderCols = 8;
+
+        const bullet = {
+            x: 0,
+            y: 0,
+            speed: 10,
+            active: false
+        };
+
+        // Key states
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            Space: false
+        };
+
+        // Initialize game
+        function initGame() {
+            score = 0;
+            level = 1;
+            gameOver = false;
+            invaderSpeed = baseInvaderSpeed;
+            createInvaders(4);
+            gameOverElement.style.display = 'none';
+            scoreElement.textContent = `Score: ${score}`;
+            levelElement.textContent = `Level: ${level}`;
+
+            // Start background music
+            backgroundMusic.play().catch(error => {
+                console.log('Audio playback error:', error);
+            });
+        }
+
+        function createInvaders(rows) {
+            invaders = [];
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < invaderCols; col++) {
+                    invaders.push({
+                        x: 100 + col * 60,
+                        y: 50 + row * 40,
+                        width: 30,
+                        height: 20,
+                        active: true
+                    });
+                }
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            if (gameOver && e.code === 'KeyR') {
+                initGame();
+                return;
+            }
+            if (e.code in keys) {
+                keys[e.code] = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code in keys) {
+                keys[e.code] = false;
+            }
+        });
+
+        function update() {
+            if (gameOver) return;
+
+            // Player movement
+            if (keys.ArrowLeft && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if (keys.ArrowRight && player.x < canvas.width - player.width) {
+                player.x += player.speed;
+            }
+
+            // Shooting
+            if (keys.Space && !bullet.active) {
+                bullet.x = player.x + player.width / 2 - 2;
+                bullet.y = player.y;
+                bullet.active = true;
+                keys.Space = false;
+            }
+
+            // Bullet movement
+            if (bullet.active) {
+                bullet.y -= bullet.speed;
+                if (bullet.y < 0) {
+                    bullet.active = false;
+                }
+            }
+
+            // Invader movement
+            let edgeReached = false;
+            let activeInvaders = invaders.filter(invader => invader.active);
+            
+            activeInvaders.forEach(invader => {
+                invader.x += invaderSpeed * invaderDirection;
+                
+                if (invader.x < 0 || invader.x + invader.width > canvas.width) {
+                    edgeReached = true;
+                }
+
+                // Game over if invaders reach bottom
+                if (invader.y + invader.height >= canvas.height) {
+                    gameOver = true;
+                    gameOverElement.style.display = 'block';
+                    backgroundMusic.pause();
+                }
+
+                // Game over if invader touches player
+                if (invader.y + invader.height >= player.y &&
+                    invader.x < player.x + player.width &&
+                    invader.x + invader.width > player.x) {
+                    gameOver = true;
+                    gameOverElement.style.display = 'block';
+                    backgroundMusic.pause();
+                }
+            });
+
+            if (edgeReached && !invaderDrop) {
+                invaderDirection *= -1;
+                invaderDrop = true;
+                activeInvaders.forEach(invader => {
+                    invader.y += 20;
+                });
+            } else if (!edgeReached) {
+                invaderDrop = false;
+            }
+
+            // Collision detection
+            if (bullet.active) {
+                activeInvaders.forEach(invader => {
+                    if (bullet.x > invader.x &&
+                        bullet.x < invader.x + invader.width &&
+                        bullet.y > invader.y &&
+                        bullet.y < invader.y + invader.height) {
+                        
+                        invader.active = false;
+                        bullet.active = false;
+                        score += 100;
+                        scoreElement.textContent = `Score: ${score}`;
+                    }
+                });
+            }
+
+            // Check for level completion
+            if (activeInvaders.length === 0) {
+                level++;
+                levelElement.textContent = `Level: ${level}`;
+                invaderSpeed += 0.5;
+                createInvaders(4 + Math.floor(level / 2));
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw player
+            ctx.fillStyle = 'lime';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Draw invaders
+            ctx.fillStyle = 'red';
+            invaders.forEach(invader => {
+                if (invader.active) {
+                    ctx.fillRect(invader.x, invader.y, invader.width, invader.height);
+                }
+            });
+
+            // Draw bullet
+            if (bullet.active) {
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(bullet.x, bullet.y, 4, 10);
+            }
+        }
+
+        function gameLoop() {
+            if (!gameOver) {
+                update();
+                draw();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game on button click
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            initGame();
+            gameLoop();
+        });
+    </script>
+</body>
+</html>
